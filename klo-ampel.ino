@@ -94,19 +94,14 @@ void triggerStatus() {
 void loop() {
 	readGateSensor(); 
 
-	Serial.print("Someone entered: "); 
-	Serial.println(someoneEntered); 
-
 	if(someoneEntered && !isOccupied) {
 		isOccupied = true; 
 		runEnterSequence(); 
-		Serial.println("enter sequence"); 
 	}
 
 	if(!someoneEntered && isOccupied) {
 		isOccupied = false; 
 		runLeaveSequence(); 
-		Serial.println("leave sequence"); 
 	}
 	
 	triggerStatus(); 
