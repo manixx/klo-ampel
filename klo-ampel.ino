@@ -1,73 +1,22 @@
-/**
- * Klo-Ampel Code 
- */
 
 /** 
  * Configuration 
  */
 
-const int lightPin = A0; 
-const int gatePin = A1; 
-const int redPin = 10; 
-const int yellowPin = 9; 
-const int greenPin = 8; 
+const int gatePin = 2; 
+const int redPin = 3; 
+const int yellowPin = 4; 
+const int greenPin = 5; 
+const int statusPin = 6; 
+const int cycleInterval = 500;    // in ms
+const int hysteresis = 4;         // in cycles
+const int changeLightDelay = 850; // in ms
+const int turnOffDelay = 2000;    // in ms
+const int interruptedState = LOW; // what state describes interrupted
 
-const int lightThreshold = 512; 
-const int gateTThreshold = 512; 
-
-const int cycleInterval = 200; // in ms 
-const int restCount = 10; 
-
-/** 
- * Sequences 
- */
-
-const int[][4] enterSequence = [
-/* R    Y    G     cycles */
-	[LOW, LOW, HIGH, 10],	
-	[LOW, LOW, LOW, 10],	
-	[LOW, LOW, HIGH, 10],	
-	[LOW, HIGH, LOW, 20],	
-	[HIGH, LOW, LOW, 20],	
-]; 
-const int[][4] leaveSequence = [
-/* R     Y    G    cycles */
-	[HIGH, LOW, LOW, 20],	
-	[HIGH, HIGH, LOW, 20],	
-	[LOW, LOW, HIGH, 20],	
-	[LOW, LOW, LOW, 10],	
-]; 
-
-/**
- * Application code 
- */
-
-int gateValue = 0; 
-int lightValue = 0; 
+bool someoneEntered = false; 
+bool isOccupied = false; 
 int cycleCount = 0; 
-
-void reset() {
-	digitalWrite(redPin, LOW); 
-	digitalWrite(yellowPin, LOW); 
-	digitalWrite(greenPin, LOW); 
-}
-
-bool someoneEntered() {
-	if(gateValue == LOW && 
-	return false; 
-}
-
-bool switchedLightOn() {
-	return false; 
-}
-
-bool isLightOn() {
-	return lightValue > lightThreshold; 
-}
-
-bool isGateInterrupted() {
-	return gateValue > gateTThreshold;
-}
 
 void setup() {
 	Serial.begin(9600); 
@@ -75,11 +24,92 @@ void setup() {
 	pinMode(redPin, OUTPUT); 
 	pinMode(yellowPin, OUTPUT); 
 	pinMode(greenPin, OUTPUT); 
-	reset();
+	pinMode(statusPin, OUTPUT); 
+
+	pinMode(gatePin, INPUT); 
+}
+
+void reset() {
+	digitalWrite(redPin, LOW); 
+	digitalWrite(yellowPin, LOW); 
+	digitalWrite(greenPin, LOW); 
+}
+
+void readGateSensor() {
+	int sensorValue = digitalRead(gatePin); 
+
+	if(!someoneEntered && sensorValue == interruptedState) {
+		someoneEntered = true; 		
+		return; 
+	}
+
+	if(someoneEntered && sensorValue != interruptedState) {
+		if(cycleCount != hysteresis) {
+			cycleCount++; 
+			return;
+		}
+		someoneEntered = false; 
+	}
+
+	cycleCount = 0; 
+}
+
+void runEnterSequence() {
+	reset(); 
+
+	digitalWrite(greenPin, HIGH); 
+	delay(changeLightDelay); 
+	digitalWrite(greenPin, LOW); 
+	delay(changeLightDelay); 
+	digitalWrite(greenPin, HIGH); 
+	delay(changeLightDelay); 
+	digitalWrite(greenPin, LOW); 
+	digitalWrite(yellowPin, HIGH); 
+	delay(changeLightDelay); 
+	digitalWrite(yellowPin, LOW); 
+	digitalWrite(redPin, HIGH); 
+}
+
+void runLeaveSequence() {
+	reset(); 
+
+	digitalWrite(redPin, HIGH); 
+	delay(changeLightDelay); 
+	digitalWrite(yellowPin, HIGH); 
+	delay(changeLightDelay); 
+	digitalWrite(redPin, LOW); 
+	digitalWrite(yellowPin, LOW); 
+	digitalWrite(greenPin, HIGH); 
+
+	delay(turnOffDelay); 
+	reset(); 
+}
+
+void triggerStatus() {
+	digitalWrite(statusPin, HIGH); 
+	delay(100); 
+	digitalWrite(statusPin, LOW); 
 }
 
 void loop() {
+	readGateSensor(); 
 
+	Serial.print("Someone entered: "); 
+	Serial.println(someoneEntered); 
+
+	if(someoneEntered && !isOccupied) {
+		isOccupied = true; 
+		runEnterSequence(); 
+		Serial.println("enter sequence"); 
+	}
+
+	if(!someoneEntered && isOccupied) {
+		isOccupied = false; 
+		runLeaveSequence(); 
+		Serial.println("leave sequence"); 
+	}
+	
+	triggerStatus(); 
 	delay(cycleInterval); 
 }
 
